@@ -1,13 +1,14 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { View, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { Text, View } from "react-native";
-import { Button, HelperText, TextInput, Snackbar } from "react-native-paper";
-import useUserStore from "../store/userStore";
 import { router } from "expo-router";
+import { Button, HelperText, TextInput, Snackbar } from "react-native-paper";
+import { DATAUSER, apiURL } from "../constants";
+import { convertToJsonString, storeData } from "../utils";
 
 export default function App() {
   const [showPassword, setShowPassword] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [visibleError, setVisibleError] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -23,7 +24,7 @@ export default function App() {
         ...prevState,
         [`${name}Error`]: `${
           name.charAt(0).toUpperCase() + name.slice(1)
-        } cannot be empty`,
+        } harus diisi`,
       }));
     } else {
       setErrors((prevState) => ({
@@ -38,10 +39,8 @@ export default function App() {
   };
 
   const handleLogin = () => {
-    const usernameError =
-      formData.username === "" ? "Username cannot be empty" : "";
-    const passwordError =
-      formData.password === "" ? "Password cannot be empty" : "";
+    const usernameError = formData.username === "" ? "Username harus diisi" : "";
+    const passwordError = formData.password === "" ? "Password harus diisi" : "";
 
     setErrors({ usernameError, passwordError });
 
@@ -49,50 +48,51 @@ export default function App() {
       return;
     }
 
-    // const payload = {
-    //   namaUser: formData.username,
-    //   kataSandi: formData.password,
-    // };
     const payload = {
-      username: formData.username,
-      password: formData.password,
+      namaUser: formData.username,
+      kataSandi: formData.password,
     };
 
-    fetch("https://dummyjson.com/auth/login", {
+    fetch(apiURL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: convertToJsonString(payload),
     })
       .then((response) => {
-        // console.log("response: ", response);
         if (!response.ok) {
           throw new Error("Network response was not ok");
         }
         return response.json();
       })
       .then((data) => {
-        // console.log("Login successful:", data);
-        useUserStore.setState({ user: data });
-        router.replace("/dashboard");
+        handleStoreData(data);
+        router.replace("/absen");
       })
-      .catch((error) => {
-        // console.error("Error during login:", error);
-        setVisible(!visible);
+      .catch(() => {
+        setVisibleError(!visibleError);
       });
   };
 
-  const onDismissSnackBar = () => setVisible(false);
+  const handleStoreData = async (data) => {
+    try {
+      await storeData(DATAUSER, data);
+    } catch (error) {
+      console.error("Failed to store data:", error);
+    }
+  };
+
+  const onDismissSnackBar = () => setVisibleError(false);
 
   const handleShowPassword = () => {
     setShowPassword(!showPassword);
   };
 
   return (
-    <View className="flex-1 items-center justify-center bg-white">
+    <View style={styles.container}>
       <StatusBar style="auto" />
-      <View className="p-6 w-full gap-3">
+      <View style={styles.wrapperForm}>
         <View>
           <TextInput
             label="Username"
@@ -100,9 +100,9 @@ export default function App() {
             value={formData.username}
             mode="outlined"
           />
-          {errors.usernameError ? (
-            <HelperText type="error">{errors.usernameError}</HelperText>
-          ) : null}
+          <HelperText type="error" style={styles.helper}>
+            {errors.usernameError}
+          </HelperText>
         </View>
 
         <View>
@@ -114,12 +114,12 @@ export default function App() {
             mode="outlined"
             right={<TextInput.Icon onPress={handleShowPassword} icon="eye" />}
           />
-          {errors.passwordError ? (
-            <HelperText type="error">{errors.passwordError}</HelperText>
-          ) : null}
+          <HelperText type="error" style={styles.helper}>
+            {errors.passwordError}
+          </HelperText>
         </View>
         <Button
-          className="mt-2"
+          style={styles.button}
           icon="login"
           mode="contained"
           uppercase
@@ -130,10 +130,10 @@ export default function App() {
       </View>
 
       <Snackbar
-        visible={visible}
+        visible={visibleError}
         onDismiss={onDismissSnackBar}
         action={{
-          label: "Close",
+          label: "Tutup",
         }}
       >
         Username atau Password salah!
@@ -141,3 +141,25 @@ export default function App() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  wrapperForm: {
+    width: "100%",
+    padding: 60,
+  },
+  button: {
+    marginTop: 10,
+  },
+  input: {
+    marginBottom: 28,
+  },
+  helper: {
+    height: 28,
+  },
+});
